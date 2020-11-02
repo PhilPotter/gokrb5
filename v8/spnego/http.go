@@ -311,6 +311,10 @@ type SPNEGOKRB5Authenticator struct {
 	// headers will already have been set on the http.ResponseWriter.
 	// Subsequent calls to WriteHeader() are ineffective.
 	UnauthorizedHandler http.Handler
+
+	// Custom handler for helping with denials
+	DeniedHandler    func(string)
+	SucceededHandler func(string)
 }
 
 // SPNEGOKRB5Authenticate is a Kerberos SPNEGO authentication HTTP handler wrapper.
@@ -385,6 +389,9 @@ func (a SPNEGOKRB5Authenticator) Authenticate(next http.Handler) http.Handler {
 				if err != nil {
 					spnego.Log("%s - error logging as client: %v", r.RemoteAddr, err)
 					a.replyUnauthorizedWithSupportedMethods(w, r)
+					if a.DeniedHandler != nil {
+						a.DeniedHandler(r.RemoteAddr)
+					}
 					return
 				}
 
@@ -448,6 +455,9 @@ func (a SPNEGOKRB5Authenticator) Authenticate(next http.Handler) http.Handler {
 					w.Header().Set(HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted)
 				}
 				next.ServeHTTP(w, goidentity.AddToHTTPRequestContext(id, r))
+				if a.SucceededHandler != nil {
+					a.SucceededHandler(r.RemoteAddr)
+				}
 				return
 			}
 
