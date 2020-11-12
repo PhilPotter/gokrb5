@@ -313,8 +313,9 @@ type SPNEGOKRB5Authenticator struct {
 	UnauthorizedHandler http.Handler
 
 	// Custom handler for helping with denials
-	DeniedHandler    func(string)
-	SucceededHandler func(string)
+	DeniedHandler         func(*http.Request)
+	SucceededHandler      func(*http.Request)
+	AllowNegotiateHandler func(*http.Request) bool
 }
 
 // SPNEGOKRB5Authenticate is a Kerberos SPNEGO authentication HTTP handler wrapper.
@@ -390,7 +391,7 @@ func (a SPNEGOKRB5Authenticator) Authenticate(next http.Handler) http.Handler {
 					spnego.Log("%s - error logging as client: %v", r.RemoteAddr, err)
 					a.replyUnauthorizedWithSupportedMethods(w, r)
 					if a.DeniedHandler != nil {
-						a.DeniedHandler(r.RemoteAddr)
+						a.DeniedHandler(r)
 					}
 					return
 				}
@@ -456,7 +457,7 @@ func (a SPNEGOKRB5Authenticator) Authenticate(next http.Handler) http.Handler {
 				}
 				next.ServeHTTP(w, goidentity.AddToHTTPRequestContext(id, r))
 				if a.SucceededHandler != nil {
-					a.SucceededHandler(r.RemoteAddr)
+					a.SucceededHandler(r)
 				}
 				return
 			}
@@ -504,7 +505,13 @@ func (a SPNEGOKRB5Authenticator) unauthorizedHandler() http.Handler {
 }
 
 func (a SPNEGOKRB5Authenticator) replyUnauthorizedWithSupportedMethods(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add(HTTPHeaderAuthResponse, HTTPHeaderAuthResponseValueKey)
+	if a.AllowNegotiateHandler != nil {
+		if a.AllowNegotiateHandler(r) {
+			w.Header().Add(HTTPHeaderAuthResponse, HTTPHeaderAuthResponseValueKey)
+		}
+	} else {
+		w.Header().Add(HTTPHeaderAuthResponse, HTTPHeaderAuthResponseValueKey)
+	}
 	if a.AllowBasicAuth {
 		w.Header().Add(HTTPHeaderAuthResponse, HTTPHeaderAuthResponseValueKeyBasic)
 	}
