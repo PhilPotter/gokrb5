@@ -316,6 +316,9 @@ type SPNEGOKRB5Authenticator struct {
 	DeniedHandler         func(*http.Request)
 	SucceededHandler      func(*http.Request)
 	AllowNegotiateHandler func(*http.Request) bool
+
+	// Custom basic realm string
+	BasicRealmStr string
 }
 
 // SPNEGOKRB5Authenticate is a Kerberos SPNEGO authentication HTTP handler wrapper.
@@ -513,7 +516,11 @@ func (a SPNEGOKRB5Authenticator) replyUnauthorizedWithSupportedMethods(w http.Re
 		w.Header().Add(HTTPHeaderAuthResponse, HTTPHeaderAuthResponseValueKey)
 	}
 	if a.AllowBasicAuth {
-		w.Header().Add(HTTPHeaderAuthResponse, HTTPHeaderAuthResponseValueKeyBasic)
+		if len(a.BasicRealmStr) > 0 {
+			w.Header().Add(HTTPHeaderAuthResponse, a.BasicRealmStr)
+		} else {
+			w.Header().Add(HTTPHeaderAuthResponse, HTTPHeaderAuthResponseValueKeyBasic)
+		}
 	}
 	a.unauthorizedHandler().ServeHTTP(w, r)
 }
